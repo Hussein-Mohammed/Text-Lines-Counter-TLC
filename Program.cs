@@ -1,4 +1,3 @@
-using Lines_Counter.Data;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Hosting.Server.Features;

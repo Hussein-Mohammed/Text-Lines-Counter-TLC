@@ -1,0 +1,758 @@
+﻿@page "/"
+@inject NavigationManager NavigationManager
+@inject IWebHostEnvironment hostingEnvironment
+@inject Headers.Uploaded_Images Uploaded_Images
+@inject Headers.Temp_Parameters TmpPar
+@inject IJSRuntime JS
+
+@using System.IO
+@using System.Linq
+@using Headers
+@using OpenCvSharp
+@using System.IO.Compression
+@using System.Threading;
+
+<PageTitle>Lines Detection</PageTitle>
+
+<h3 style="text-align:center">Text-Lines Counting</h3>
+<br />
+<div class="row">
+	<div class="col-8" style="position:center">
+		@if (!Uploaded_Images.FilesUploaded)
+		{
+			<div style="position:center; text-align:center">
+				<InputFile OnChange="OnFileChanged" multiple disabled=@Uploaded_Images.FilesUploaded style="position:center"></InputFile>
+				<br />
+
+				<label for="Upload">Upload Progress: @(Math.Round(Upload_Progress,1).ToString() + "%")</label>
+				<progress id="Upload" value="@Math.Round(Upload_Progress,1)" max="100" style="margin-top:10px"> @(Math.Round(Upload_Progress,1).ToString() + "%") </progress>
+
+			</div>
+		}
+		@if (Uploaded_Images.FilesUploaded)
+		{
+			showImage(TmpPar.CurrentImageIndex);
+
+			<div style="position:center; text-align:center">
+				<button @onclick="() => Reset()">
+					Reset
+				</button>
+			</div>
+			<br />
+
+			@if (!Uploaded_Images.ImagesAnalysed)
+			{
+				<div style="position:center; text-align:center">
+					@*transform-origin:center center; transform:rotate(90deg);">*@
+					<img src="@imageSource" style="width:auto; height:@(ImageHeight.ToString() + "px");" />
+				</div>
+			}
+			else
+			{
+				if (!TmpPar.Rotate)
+				{
+					ShowHist(TmpPar.CurrentImageIndex);
+
+					<div class="row">
+						<div class="col-6">
+							<div style="text-align:right;">
+								@*transform-origin:center center; transform:rotate(90deg);">*@
+								<img src="@imageSource" style="width:auto; height:@(ImageHeight.ToString() + "px");" />
+							</div>
+						</div>
+
+						<div class="col-6">
+							<div style="text-align:left;">
+								@*transform-origin:15px center; transform:rotate(90deg);">*@
+								<img src="@HistSource" style="width:auto; height:@(ImageHeight.ToString() + "px")" />
+							</div>
+						</div>
+					</div>
+				}
+				else
+				{
+					ShowHist(TmpPar.CurrentImageIndex);
+
+					<div style="text-align:center;">
+						@*transform-origin:center center; transform:rotate(90deg);">*@
+						<img src="@imageSource" style="width:50%; height:auto;" />
+					</div>
+
+					<div style="text-align:center;">
+						@*transform-origin:15px center; transform:rotate(90deg);">*@
+						<img src="@HistSource" style="width:50%; height:auto" />
+					</div>
+				}
+			}
+
+			<div style="position:center; text-align:center">
+				<p>@Uploaded_Images.Images[TmpPar.CurrentImageIndex].FileName</p>
+			</div>
+			<br />
+
+			<div style="position:center; text-align:center">
+
+				<button @onclick="() => {TmpPar.CurrentImageIndex=0;}">
+					First
+				</button>
+
+				<button @onclick="() => ShowPrevious()" style="margin-left:5px">
+					Previous
+				</button>
+
+				<input @bind="@TmpPar.CurrentImageIndex" @oninput="() => CheckImageIndex(TmpPar.CurrentImageIndex)" name="ImageIndex" type="number" max="@(Uploaded_Images.Images.Count()-1)" min="0" style="margin-left:5px;width:50px">
+
+				<button @onclick="() => ShowNext()" style="margin-left:5px">
+					Next
+				</button>
+
+				<button @onclick="() => {TmpPar.CurrentImageIndex=Uploaded_Images.Images.Count()-1;}" style="margin-top:5px">
+					Last
+				</button>
+
+				<div style="position:center; text-align:center; margin-top:5px">
+					<button @onclick="DetectLines">
+						Detect Text-Lines
+					</button>
+					<br>
+					<label for="Analysis" style="margin-left:5px"> Analysis Progress: @(Math.Round(Uploaded_Images.Analysis_Progress,1).ToString() + "%") </label>
+					<progress id="Analysis" value="@Math.Round(Uploaded_Images.Analysis_Progress,1)" max="100" style="margin-top:10px"> @(Math.Round(Uploaded_Images.Analysis_Progress,1).ToString() + "%") </progress>
+
+				</div>
+				<br />
+			</div>
+		}
+
+	</div>
+
+	<div class="col-4" style="position:center">
+
+		<div class="row">
+			<div class="col-6">
+				<label style="font-size:small"> Used resolution: @(TmpPar.ResizeFactor*100) % </label>
+			</div>
+			<div class="col-6">
+				<input type="range" @bind="@TmpPar.ResizeFactor" min="0.1" max="1" step="0.1" class="slider" width="100%">
+			</div>
+		</div>
+		<br />
+		<div class="row">
+			<div class="col-6">
+				<label style="font-size:small"> Distance to min hist value: Min=@TmpPar.Min_Scale </label>
+			</div>
+			<div class="col-6">
+				<input type="range" @bind="@TmpPar.Min_Scale" min="0.1" max="0.9" step="0.1" class="slider" width="100%">
+			</div>
+		</div>
+		<br />
+		<div class="row">
+			<div class="col-6">
+				<label style="font-size:small"> Distance to max hist value: Max=@TmpPar.Max_Scale </label>
+			</div>
+			<div class="col-6">
+				<input type="range" @bind="@TmpPar.Max_Scale" min="0.1" max="0.9" step="0.1" class="slider" width="100%">
+			</div>
+		</div>
+		<br />
+		<div class="row">
+			<div class="col-6">
+				<label style="font-size:small"> Size of bluring kernel: Ksize=@TmpPar.ksizeWidth </label>
+			</div>
+			<div class="col-6">
+				<input type="range" @bind="@TmpPar.ksizeWidth" min="3" max="99" step="2" class="slider" width="100%">
+			</div>
+		</div>
+		<br />
+		<div class="row">
+			<div class="col-6">
+				<label style="font-size:small">Rotate image by 90 degrees:</label>
+			</div>
+			<div class="col-6">
+				<input @bind="TmpPar.Rotate" name="Rotate" type="checkbox" value="true" style="transform:scale(2)">
+			</div>
+		</div>
+		<br />
+		<div class="row">
+			<div class="col-6">
+				<label style="font-size:small">Detect high-intensity lines:</label>
+			</div>
+			<div class="col-6">
+				<input @bind="TmpPar.Detect_High_Intensity" name="Detect_High_Intensity" type="checkbox" style="transform:scale(2)">
+			</div>
+		</div>
+		<br />
+		<div style="position:center; text-align:center; margin-top:5px">
+			<button @onclick="() => ResetParameters()">
+				Reset Parameters
+			</button>
+		</div>
+
+		@if (Uploaded_Images.ImagesAnalysed)
+		{
+			<hr />
+
+			<div class="row">
+				<div class="col-8" style="text-align:left">
+					<p>Number of text-lines in current image: </p>
+				</div>
+				<div class="col-4" style="text-align:left">
+					<p>@Math.Round(Uploaded_Images.Images[TmpPar.CurrentImageIndex].NumberOfFibres_Calculated,1)</p>
+				</div>
+			</div>
+
+			<div class="row">
+				<div class="col-8" style="text-align:left">
+					<p>Average number of text-lines in all images: </p>
+				</div>
+				<div class="col-4" style="text-align:left">
+					<p>@Math.Round(Uploaded_Images.AvgNumLines,1)</p>
+				</div>
+			</div>
+			@if (Uploaded_Images.ResultsReady)
+			{
+				<div style="position:center; text-align:center; margin-top:5px">
+					<button>
+						<a class="btn" href="Temp/NumberedTextLines.zip" download="NumberedTextLines.zip">Download Results</a>
+					</button>
+				</div>
+			}
+		}
+
+	</div>
+
+</div>
+
+@code {
+
+	List<string> ValidFiles = new List<string>();
+	private string? imageSource;
+	private string? HistSource;
+	// bool FilesUploaded = false;
+	int CurrentImageIndex = 0;
+	int ImageHeight = 500;
+	private double Upload_Progress = 0;
+	private double Analysis_Progress = 0;
+
+	string Manuscripts_Folder = "Manuscripts";
+	string Histogram_Folder = "Histogram";
+	string Preprocessed_Folder = "Preprocessed";
+	string Pattern_Folder = "Pattern";
+	string Enhanced_Folder = "Enhanced";
+	string NumberedLines_Folder = "NumberedLines";
+	string Temp_Folder = "Temp";
+
+	async Task OnFileChanged(InputFileChangeEventArgs e)
+	{
+		Uploaded_Images.FilesUploaded = false;
+
+		// Create a new InputFile component
+		string webRootPath = hostingEnvironment.WebRootPath;
+		string Manuscripts_Path = Path.Combine(webRootPath, Manuscripts_Folder);
+		string Preprocessed_Path = Path.Combine(webRootPath, Preprocessed_Folder);
+		string Pattern_Path = Path.Combine(webRootPath, Pattern_Folder);
+		string Histogram_Path = Path.Combine(webRootPath, Histogram_Folder);
+		string Enhanced_Path = Path.Combine(webRootPath, Enhanced_Folder);
+		string NumberedLines_Path = Path.Combine(webRootPath, NumberedLines_Folder);
+		string TempPath = Path.Combine(webRootPath, Temp_Folder);
+
+		if (!Directory.Exists(Manuscripts_Path))
+		{
+			Directory.CreateDirectory(Manuscripts_Path);
+		}
+		Directory.EnumerateFiles(Manuscripts_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(Preprocessed_Path))
+		{
+			Directory.CreateDirectory(Preprocessed_Path);
+		}
+		Directory.EnumerateFiles(Preprocessed_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Pattern_Path))
+		{
+			Directory.CreateDirectory(Pattern_Path);
+		}
+		Directory.EnumerateFiles(Pattern_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Histogram_Path))
+		{
+			Directory.CreateDirectory(Histogram_Path);
+		}
+		Directory.EnumerateFiles(Histogram_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Enhanced_Path))
+		{
+			Directory.CreateDirectory(Enhanced_Path);
+		}
+		Directory.EnumerateFiles(Enhanced_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(NumberedLines_Path))
+		{
+			Directory.CreateDirectory(NumberedLines_Path);
+		}
+		Directory.EnumerateFiles(NumberedLines_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(TempPath))
+		{
+			Directory.CreateDirectory(TempPath);
+		}
+		Directory.EnumerateFiles(TempPath).ToList().ForEach(f => System.IO.File.Delete(f));
+
+
+		try
+		{
+			var buffer = new byte[4096];
+			double NumOfFiles = (double)e.FileCount;
+			Upload_Progress = 0;
+			double ProgressStep = (1.0 / NumOfFiles) * 100;
+
+			foreach (var file in e.GetMultipleFiles(e.FileCount))
+			{
+				// status += "\nReading file: " + file.Name;
+				using var stream = file.OpenReadStream(maxAllowedSize: long.MaxValue);
+				while (true)
+				{
+					var read = await stream.ReadAsync(buffer);
+					if (read == 0)
+						break;
+				}
+
+				// status += "\nRead file: " + file.Name;
+
+				// Create new local file and copy contents of uploaded file
+				using (var localFile = System.IO.File.OpenWrite(Manuscripts_Path + "/" + file.Name))
+				using (var uploadedFile = file.OpenReadStream(maxAllowedSize: 2147483648))
+				{
+					await uploadedFile.CopyToAsync(localFile);
+				}
+
+				Upload_Progress += Math.Round(ProgressStep, 1);
+				if (Upload_Progress > 100)
+					Upload_Progress = 100;
+
+				await InvokeAsync(StateHasChanged);
+			}
+			// status = e.FileCount.ToString() + " files have been uploaded!";
+
+			if (e.FileCount > 0)
+			{
+				Uploaded_Images.Orientation = false;
+				Uploaded_Images.Length_mm = 20;
+				ValidFiles = Directory.EnumerateFiles(Manuscripts_Path, "*.*", SearchOption.AllDirectories).Where(s => s.ToLower().EndsWith(".jpeg") ||
+				s.ToLower().EndsWith(".jpg") || s.ToLower().EndsWith(".tif") || s.ToLower().EndsWith(".tiff") || s.ToLower().EndsWith(".png") ||
+				s.ToLower().EndsWith(".bmp")).ToList();
+
+				for (int img = 0; img < ValidFiles.Count(); img++)
+				{
+					ImageInfo CurrentImage = new ImageInfo();
+
+					string Current_Image_Path = ValidFiles.ElementAt(img);
+
+					// If the extension is "Tiff", convert the image to "jpg"
+					if (Path.GetExtension(Current_Image_Path).ToLower() == ".tif" || Path.GetExtension(Current_Image_Path).ToLower() == ".tiff")
+					{
+						// Read the image
+						Mat Original_Image = new Mat(Current_Image_Path, ImreadModes.Color);
+
+						System.IO.File.Delete(Current_Image_Path);
+						Current_Image_Path = Path.ChangeExtension(Current_Image_Path, ".jpg");
+						Original_Image.ImWrite(Current_Image_Path);
+					}
+
+					CurrentImage.FilePath = Current_Image_Path;
+					CurrentImage.FileName = System.IO.Path.GetFileName(Current_Image_Path);
+
+					Uploaded_Images.Images.Add(CurrentImage);
+				}
+
+				Uploaded_Images.FilesUploaded = true;
+
+				await InvokeAsync(StateHasChanged);
+				
+				// imageSource = Manuscripts_Folder + "/" + Path.GetFileName(ValidFiles[0]);
+			}
+		}
+		catch (Exception ex)
+		{
+			// status += "\nError: " + ex.Message;
+			await InvokeAsync(StateHasChanged);
+		}
+	}
+
+	private void CheckImageIndex(int CurrentImageIndex)
+	{
+		if (CurrentImageIndex < 0)
+		{
+			CurrentImageIndex = 0;
+		}
+
+		if (CurrentImageIndex > Uploaded_Images.Images.Count() - 1)
+		{
+			CurrentImageIndex = Uploaded_Images.Images.Count() - 1;
+		}
+	}
+
+	private void showImage(int id)
+	{
+		string webRootPath = hostingEnvironment.WebRootPath;
+		string Manuscripts_Path = Path.Combine(webRootPath, Manuscripts_Folder);
+		if (!Directory.Exists(Manuscripts_Path))
+		{
+			Directory.CreateDirectory(Manuscripts_Path);
+		}
+
+		if (TmpPar.CurrentImageIndex < 0)
+		{
+			TmpPar.CurrentImageIndex = 0;
+		}
+
+		else if (TmpPar.CurrentImageIndex > Uploaded_Images.Images.Count() - 1)
+		{
+			TmpPar.CurrentImageIndex = Uploaded_Images.Images.Count() - 1;
+		}
+
+		else
+			imageSource = Manuscripts_Folder + "/" + Path.GetFileName(Uploaded_Images.Images[id].FileName);
+
+		string Current_Image_Path = Uploaded_Images.Images[id].FilePath;
+
+		Mat Original_Image = new Mat(Current_Image_Path, ImreadModes.Grayscale);
+
+		if (Original_Image.Width > Original_Image.Height)
+		{
+			double AspectRatio = (double)Original_Image.Height / (double)Original_Image.Width;
+			ImageHeight = (int)(AspectRatio * 500);
+		}
+		else
+			ImageHeight = 500;
+	}
+
+	private void ShowHist(int id)
+	{
+		string webRootPath = hostingEnvironment.WebRootPath;
+		string Histogram_Path = Path.Combine(webRootPath, Histogram_Folder);
+		if (!Directory.Exists(Histogram_Path))
+		{
+			Directory.CreateDirectory(Histogram_Path);
+		}
+
+		if (TmpPar.CurrentImageIndex < 0)
+		{
+			TmpPar.CurrentImageIndex = 0;
+		}
+
+		else if (TmpPar.CurrentImageIndex > Uploaded_Images.Images.Count() - 1)
+		{
+			TmpPar.CurrentImageIndex = Uploaded_Images.Images.Count() - 1;
+		}
+
+		else
+			HistSource = Histogram_Folder + "/" + Path.GetFileName(Uploaded_Images.Images[id].FileName);
+	}
+
+	private void ShowPrevious()
+	{
+		if (TmpPar.CurrentImageIndex > 0)
+			TmpPar.CurrentImageIndex--;
+		else
+			TmpPar.CurrentImageIndex = 0;
+	}
+
+	private void ShowNext()
+	{
+		if (TmpPar.CurrentImageIndex < Uploaded_Images.Images.Count() - 1)
+			TmpPar.CurrentImageIndex++;
+		else
+			TmpPar.CurrentImageIndex = Uploaded_Images.Images.Count() - 1;
+	}
+
+	private void Reset()
+	{
+		ValidFiles.Clear();
+		Uploaded_Images.Images.Clear();
+		Uploaded_Images.FilesUploaded = false;
+		Uploaded_Images.ImagesAnalysed = false;
+		Uploaded_Images.ResultsReady = false;
+		Uploaded_Images.AnalysisBar = false;
+		Upload_Progress = 0;
+		Analysis_Progress = 0;
+
+		string webRootPath = hostingEnvironment.WebRootPath;
+		string Manuscripts_Path = Path.Combine(webRootPath, Manuscripts_Folder);
+		string Preprocessed_Path = Path.Combine(webRootPath, Preprocessed_Folder);
+		string Pattern_Path = Path.Combine(webRootPath, Pattern_Folder);
+		string Histogram_Path = Path.Combine(webRootPath, Histogram_Folder);
+		string Enhanced_Path = Path.Combine(webRootPath, Enhanced_Folder);
+		string NumberedLines_Path = Path.Combine(webRootPath, NumberedLines_Folder);
+		string TempPath = Path.Combine(webRootPath, Temp_Folder);
+
+		if (!Directory.Exists(Manuscripts_Path))
+		{
+			Directory.CreateDirectory(Manuscripts_Path);
+		}
+		Directory.EnumerateFiles(Manuscripts_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(Preprocessed_Path))
+		{
+			Directory.CreateDirectory(Preprocessed_Path);
+		}
+		Directory.EnumerateFiles(Preprocessed_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Pattern_Path))
+		{
+			Directory.CreateDirectory(Pattern_Path);
+		}
+		Directory.EnumerateFiles(Pattern_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Histogram_Path))
+		{
+			Directory.CreateDirectory(Histogram_Path);
+		}
+		Directory.EnumerateFiles(Histogram_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Enhanced_Path))
+		{
+			Directory.CreateDirectory(Enhanced_Path);
+		}
+		Directory.EnumerateFiles(Enhanced_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(NumberedLines_Path))
+		{
+			Directory.CreateDirectory(NumberedLines_Path);
+		}
+		Directory.EnumerateFiles(NumberedLines_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(TempPath))
+		{
+			Directory.CreateDirectory(TempPath);
+		}
+		Directory.EnumerateFiles(TempPath).ToList().ForEach(f => System.IO.File.Delete(f));
+
+	}
+
+	async Task DetectLines()
+	{
+		Uploaded_Images.AnalysisBar = true;
+		Uploaded_Images.ImagesAnalysed = false;
+		/*
+		* Prepare the directories
+		*/
+		string webRootPath = hostingEnvironment.WebRootPath;
+		string Manuscripts_Path = Path.Combine(webRootPath, Manuscripts_Folder);
+		string Preprocessed_Path = Path.Combine(webRootPath, Preprocessed_Folder);
+		string Pattern_Path = Path.Combine(webRootPath, Pattern_Folder);
+		string Histogram_Path = Path.Combine(webRootPath, Histogram_Folder);
+		string Enhanced_Path = Path.Combine(webRootPath, Enhanced_Folder);
+		string NumberedLines_Path = Path.Combine(webRootPath, NumberedLines_Folder);
+		string TempPath = Path.Combine(webRootPath, Temp_Folder);
+
+		if (!Directory.Exists(Manuscripts_Path))
+		{
+			Directory.CreateDirectory(Manuscripts_Path);
+		}
+
+		if (!Directory.Exists(Preprocessed_Path))
+		{
+			Directory.CreateDirectory(Preprocessed_Path);
+		}
+		Directory.EnumerateFiles(Preprocessed_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Pattern_Path))
+		{
+			Directory.CreateDirectory(Pattern_Path);
+		}
+		Directory.EnumerateFiles(Pattern_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Histogram_Path))
+		{
+			Directory.CreateDirectory(Histogram_Path);
+		}
+		Directory.EnumerateFiles(Histogram_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		if (!Directory.Exists(Enhanced_Path))
+		{
+			Directory.CreateDirectory(Enhanced_Path);
+		}
+		Directory.EnumerateFiles(Enhanced_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(NumberedLines_Path))
+		{
+			Directory.CreateDirectory(NumberedLines_Path);
+		}
+		Directory.EnumerateFiles(NumberedLines_Path).ToList().ForEach(f => System.IO.File.Delete(f));
+		if (!Directory.Exists(TempPath))
+		{
+			Directory.CreateDirectory(TempPath);
+		}
+		Directory.EnumerateFiles(TempPath).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		/*
+		* Start the detection process
+		*/
+
+		LinesDetection linesDetection = new LinesDetection();
+		Uploaded_Images.Images = linesDetection.Read_Fibre_Images(Manuscripts_Path);
+		Uploaded_Images.Images = linesDetection.Populate_Fibre_Info(Uploaded_Images.Images, 20);
+
+		Analysis_Progress = 0;
+		Uploaded_Images.Analysis_Progress = 0;
+		double AnalysisStep = (1.0 / Uploaded_Images.Images.Count()) * 100;
+		float TotalNumLines = 0;
+
+		var Results_csv = new System.Text.StringBuilder();
+		Results_csv.AppendLine("Image,TL_Number");
+
+		for (int img = 0; img < Uploaded_Images.Images.Count(); img++)
+		{
+			string Current_Image_Path = Uploaded_Images.Images[img].FilePath;
+
+			// Read the image
+			Mat Original_Image = new Mat(Current_Image_Path, ImreadModes.Color);
+
+			// Crop image if needed
+
+
+			// Resize the images if Resizing is enabled
+			if (TmpPar.Resize)
+			{
+				Cv2.Resize(Original_Image, Original_Image, new Size(), TmpPar.ResizeFactor, TmpPar.ResizeFactor);
+			}
+
+			// Rotate if Vertical orientation is not selected
+			if (!TmpPar.Rotate)
+			{
+				Cv2.Rotate(Original_Image, Original_Image, RotateFlags.Rotate90Clockwise);
+				// Original_Image.ImWrite(Current_Image_Path);
+			}
+
+			// Detect peaks in histogram
+			ImageInfo Current_Fibre_Info = new ImageInfo();
+			// Current_Fibre_Info = linesDetection.Line_Detector(Original_Image, Uploaded_Images);
+			Current_Fibre_Info = linesDetection.Line_Detector(Original_Image, TmpPar);
+
+			Uploaded_Images.Images[img].NumberOfFibres_Calculated = Current_Fibre_Info.Peaks.Count();
+			TotalNumLines += Current_Fibre_Info.Peaks.Count();
+			Uploaded_Images.Images[img].Peaks = Current_Fibre_Info.Peaks;
+			Uploaded_Images.Images[img].Density = Uploaded_Images.Images[img].NumberOfFibres_Calculated / (Uploaded_Images.Length_mm / 10);
+
+			Results_csv.AppendLine(Uploaded_Images.Images[img].FileName + "," + Convert.ToString(Current_Fibre_Info.Peaks.Count()));
+
+			// Calculate Min and Max spacing between detected lines
+			linesDetection.Min_Max_Spacing(Uploaded_Images.Images[img], Uploaded_Images.Length_mm, Original_Image.Width);
+
+			Analysis_Progress += Math.Round(AnalysisStep, 1);
+			Uploaded_Images.Analysis_Progress += Math.Round(AnalysisStep, 1);
+
+			if (Analysis_Progress > 90)
+				Analysis_Progress = 90;
+
+			if (Uploaded_Images.Analysis_Progress > 90)
+				Uploaded_Images.Analysis_Progress = 90;
+
+			await InvokeAsync(StateHasChanged);
+			await Task.Delay(1);
+		}
+
+		Uploaded_Images.AvgNumLines = TotalNumLines / Uploaded_Images.Images.Count();
+		Uploaded_Images.Total_Evaluation = linesDetection.Evaluate_Detection_Results(Uploaded_Images.Images);
+
+		Results_csv.AppendLine();
+		Results_csv.AppendLine("AvgTL_Number"+ "," + Convert.ToString(Uploaded_Images.AvgNumLines));
+
+		/*
+		* Generate and save preprocessed data and resulting patterns
+		*/
+		for (int img = 0; img < Uploaded_Images.Images.Count(); img++)
+		{
+			Mat Original_Image = new Mat(Uploaded_Images.Images[img].FilePath, ImreadModes.Color);
+
+			// Crop image if needed
+
+
+			string Current_PreprocessedImg_Path = Path.Combine(Preprocessed_Path, Uploaded_Images.Images[img].FileName);
+
+			// Resize the images if Resizing is enabled
+			if (TmpPar.Resize)
+			{
+				Cv2.Resize(Original_Image, Original_Image, new Size(), TmpPar.ResizeFactor, TmpPar.ResizeFactor);
+			}
+
+			// Rotate if Vertical orientation is not selected
+			if (!TmpPar.Rotate)
+			{
+				Cv2.Rotate(Original_Image, Original_Image, RotateFlags.Rotate90Clockwise);
+				// Original_Image.ImWrite(Uploaded_Images.Images[img].FilePath);
+			}
+
+			Original_Image.ImWrite(Current_PreprocessedImg_Path);
+
+
+			string Current_File_Name = Uploaded_Images.Images[img].FileName;
+			string Current_Preprocessed_Path = Current_PreprocessedImg_Path;
+			string Current_Original_Path = Uploaded_Images.Images[img].FilePath;
+
+			ImageInfo Current_Fibre_Info = new ImageInfo();
+			// Mat TempImg = Original_Image.Clone();
+			// Current_Fibre_Info = linesDetection.Line_Detector(TempImg, Uploaded_Images);
+			Current_Fibre_Info = linesDetection.Line_Detector(Original_Image, TmpPar);
+
+			// Generate Histogram and Pattern Images
+			string Current_Histogram_Path = Path.Combine(Histogram_Path, Uploaded_Images.Images[img].FileName);
+			string Current_Pattern_Path = Path.Combine(Pattern_Path, Uploaded_Images.Images[img].FileName);
+			string Current_Enhanced_Path = Path.Combine(Enhanced_Path, Uploaded_Images.Images[img].FileName);
+			string Current_NumberedLines_Path = Path.Combine(NumberedLines_Path, Uploaded_Images.Images[img].FileName);
+
+			// linesDetection.Save_Detections_As_Images(TempImg, Uploaded_Images, Current_Histogram_Path, Current_Pattern_Path, Current_Enhanced_Path);
+			linesDetection.Save_Detections_As_Images_Par(Original_Image, TmpPar, Current_Histogram_Path, Current_Pattern_Path, Current_Enhanced_Path, Current_NumberedLines_Path);
+
+			Analysis_Progress = 100;
+			Uploaded_Images.Analysis_Progress = 100;
+
+			Uploaded_Images.ImagesAnalysed = true;
+			Uploaded_Images.AnalysisBar = false;
+
+			await InvokeAsync(StateHasChanged);
+			await Task.Delay(1);
+		}
+
+		System.IO.File.WriteAllText(NumberedLines_Path + "/Results.csv", Results_csv.ToString());
+		// create a new archive
+		string archive = TempPath + "\\NumberedTextLines.zip";
+		ZipFile.CreateFromDirectory(NumberedLines_Path, archive);
+
+		Uploaded_Images.ResultsReady = true;
+		await InvokeAsync(StateHasChanged);
+		await Task.Delay(1);
+
+		NavigationManager.NavigateTo("", true);
+	}
+
+	private void ResetParameters()
+	{
+		TmpPar.Rotate = false;
+		TmpPar.ResizeFactor = 0.5;
+
+		// Detection Parameters
+		TmpPar.ksizeWidth = 51;
+		TmpPar.Min_Scale = 0.6F;
+		TmpPar.Max_Scale = 0.6F;
+		TmpPar.Detect_High_Intensity = false;
+	}
+
+	private void SaveResults()
+	{
+		string webRootPath = hostingEnvironment.WebRootPath;
+		string NumberedLines_Path = Path.Combine(webRootPath, NumberedLines_Folder);
+		if (!Directory.Exists(NumberedLines_Path))
+		{
+			Directory.CreateDirectory(NumberedLines_Path);
+		}
+
+		string Temp_Folder = "Temp";
+		string TempPath = Path.Combine(webRootPath, Temp_Folder);
+		if (!Directory.Exists(TempPath))
+		{
+			Directory.CreateDirectory(TempPath);
+		}
+		Directory.EnumerateFiles(TempPath).ToList().ForEach(f => System.IO.File.Delete(f));
+
+		// create a new archive
+		string archive = TempPath + "\\NumberedTextLines.zip";
+		ZipFile.CreateFromDirectory(NumberedLines_Path, archive);
+
+		Uploaded_Images.ResultsReady = true;
+	}
+
+}

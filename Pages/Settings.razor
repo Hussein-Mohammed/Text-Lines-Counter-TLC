@@ -1,0 +1,154 @@
+﻿@page "/settings"
+@inject Lines_Counter.Headers.Uploaded_Images PFD
+@inject Lines_Counter.Headers.Temp_Parameters TmpPar
+@using OpenCvSharp
+
+<PageTitle> Advanced Settings </PageTitle>
+
+<h3 style="text-align:center">Advanced Settings</h3>
+
+<div class="row">
+	<div class="col-6">
+		<fieldset>
+			<legend style="position:center; text-align:center">Preprocessing Parameters</legend>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Image channel to consider (All will be considered when 0):</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.Channel" name="Channel" type="number" max="@MaxChannelsNum()" min="0">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Apply histogram equalisation:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.Apply_HistEqu" name="Apply_HistEqu" type="checkbox" style="transform:scale(2)">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Apply the CLAHE algorithm:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.Apply_CLAHE" name="Apply_CLAHE" type="checkbox" style="transform:scale(2)">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Clipping Limit for CLAHE:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.ClipLimit" name="ClipLimit" type="number" max="250" min="5">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Size of tiles grid for CLAHE:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.TilesGridWidth" name="TilesGridSize" type="number" max="99" min="3">
+				</div>
+			</div>
+		</fieldset>
+	</div>
+
+	<div class="col-6">
+		<fieldset>
+			<legend style="position:center; text-align:center">Detection Parameters</legend>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Size of bluring kernel:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.ksizeWidth" name="Hist_Blur_Size" type="number" max="99" min="3">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium"> Condition: Minimum_Histogram_Value &lt; (Detected_Peak * X):</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.Min_Scale" name="Min_Threshold" type="number" step="0.1" max="0.9" min="0.1">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Condition: Detected_Peak &gt; (Maximum_Histogram_Value * X):</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.Max_Scale" name="Max_Threshold" type="number" step="0.1" max="0.9" min="0.1">
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Percent of image border to be ignored:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.DetectionBorder" name="DetectionBorder" type="number" step="0.05" max="45" min="0"> %
+				</div>
+			</div>
+			<hr />
+			<div class="row">
+				<div class="col-8">
+					<label style="font-size:medium">Detect high-intensity lines:</label>
+				</div>
+				<div class="col-4">
+					<input @bind="TmpPar.Detect_High_Intensity" name="Detect_High_Intensity" type="checkbox" style="transform:scale(2)">
+				</div>
+			</div>
+		</fieldset>
+	</div>
+</div>
+<hr />
+<div style="position:center; text-align:center; margin-top:5px">
+			<button @onclick="() => ResetParameters()">
+				Reset Parameters
+			</button>
+		</div>
+
+@code {
+
+	private int MaxChannelsNum()
+	{
+		if (PFD.Images != null && PFD.Images.Count() > 0)
+		{
+			Mat Original_Image = new Mat(PFD.Images[0].FilePath, ImreadModes.Color);
+
+			return Original_Image.Channels();
+		}
+		else
+			return 0;
+	}
+
+	private void ResetParameters()
+	{
+		TmpPar.Rotate = false;
+		TmpPar.Total_Evaluation = 0.0F;
+		TmpPar.Length_mm = 20;
+		TmpPar.Resize = true;
+		TmpPar.ResizeFactor = 0.5;
+
+        // Detection Parameters
+		TmpPar.ksizeWidth = 51;
+		TmpPar.Min_Scale = 0.6F;
+		TmpPar.Max_Scale = 0.6F;
+		TmpPar.TilesGridWidth = 4;
+		TmpPar.ClipLimit = 40;
+		TmpPar.Apply_HistEqu = true;
+		TmpPar.Apply_CLAHE = true;
+		TmpPar.Channel = 0;
+		TmpPar.DetectionBorder = 0.1;
+		TmpPar.Detect_High_Intensity = false;
+	}
+}

@@ -1,0 +1,39 @@
+﻿@inherits LayoutComponentBase
+
+<PageTitle>Lines Counter</PageTitle>
+
+<div class="page" style="overflow-y: hidden;">
+	<div class="sidebar">
+		<NavMenu />
+	</div>
+
+	<main>
+		<div class="row">
+			<div class="col-2">
+				<a href="https://www.uni-hamburg.de/en.html"><img src="images/Logos/UHH.jpg" class="img-responsive" style="width:100%; display: block; margin-left: auto; margin-right: auto" /></a>
+			</div>
+			
+			<div class="col-3">
+			</div>
+
+			<div class="col-2" style="text-align:center;font-size: calc(0.7vw + 0.7vh + 0.3vmin)">
+				<div> <!--class="top-row px-4"-->
+					<NavLink class="nav-link" href="about">
+						About TLC v1.0
+					</NavLink>
+				</div>
+			</div>
+
+			<div class="col-3">
+			</div>
+
+			<div class="col-2">
+				<a href="https://www.written-artefacts.uni-hamburg.de/"><img src="images/Logos/CSMC.jpg" class="img-responsive" style="width:85%; display: block; margin-left: auto; margin-right: auto; margin-top: 10px" /></a>
+			</div>	
+
+		</div>
+		<article class="content px-4">
+			@Body
+		</article>
+	</main>
+</div>

@@ -1,0 +1,79 @@
+﻿@page "/guidelines"
+
+<PageTitle> Guidelines </PageTitle>
+
+<h3 style="text-align:center">Guidelines</h3>
+<br />
+
+<h4> How to Use the Text-Lines Counter (TLC):</h4>
+<ul>
+	<li>
+		Choose image files with text-lines, accepted extensions are: ".jpeg", ".jpg", ".tiff", ".tif", ".png" and ".bmp". 
+		A progress bar will indicate the current status of files upload.
+	</li>
+	<br />
+	<li>
+		You can change the main parameters of this tool from the left side of the "Detect Lines" page, 
+		and you can reset them to their default values by clicking "Reset Parameters". Changing the parameters can be done before or after uploading the images.
+		The main parameters are:
+		<ul>
+			<li>
+				<b>Current Resolution:</b> Lower image resolutions mean faster processing of image batches. 
+				Also, lower resolutions can help eliminating unnecessary image details in many cases, which can lead to higher accuracy.
+			</li>
+			<li>
+				<b>Distance to min hist value</b> [Min Histogram Value &lt; (Detected Peak x Min)]: Higher values allow the algorithm to accept peaks closer to the minimum histogram value.
+				Lower values restrict the algorithm to accept only peaks that are much larger than the minimum historgram value.
+			</li>
+			<li>
+				<b>Distance to max hist value</b> [Detected Peak &gt; (Max Histogram Value x Max)]: Higher values restrict the algorithm to accept only peaks that are closer to the maximum 
+				histogram value. Lower values allow the algorithm to accept peaks that are significantly smaller than the maximum histogram value.
+			</li>
+			<li>
+				<b>Size of bluring kernel:</b> Larger values mean that more details in the image will be blured away. This could help eliminating unrelated 
+				peaks which can result in cases like lines overlap and annotations between lines.
+			</li>
+			<li>
+				<b>Rotate image by 90 degrees:</b> This option can be used for scripts with vertical text-lines.
+			</li>
+			<li>
+				<b>Detect high-intensity lines:</b> Text-lines are considered to be of lower intensity (darker than the background). Check this parameter to detect high-intensity 
+				text-lines (lighter than the background).
+			</li>
+		</ul>
+	</li>
+	<br />
+	<li>
+		Once all images are uploaded, an image browser will appear. You can browse the uploaded images and read their original file names. 
+		You can reset this process any time and delete all the images by clicking the "Reset" button at the top.
+	</li>
+	<br />
+	<li>
+		Clicking the "Detect Text-Lines" button will start the detection process using the current values of parameters.
+	</li>
+	<br />
+	<li>
+		Once the detection process ends, you can see the generated histogram next to each uploaded image. Furthermore, you can see the number of text-lines per image,
+		and the average number of text-lines in all images.
+	</li>
+	<br />
+	<li>
+		You can change the parameters and click the "Detect Text-Lines" button again in order to re-calculate the detections using the new parameter values.
+	</li>
+	<br />
+	<li>
+		The results can be downloaded as a ".zip" file by clicking the "Download Results" button to the left. The results folder contains the following files:
+		<ul>
+			<li>
+				A ".csv" file which contain the number of detected text-lines in every image, and the average number of text-lines in all the images. 
+			</li>
+			<li>
+				Copies of all the uploaded images with annotations marking every detected text-line by a number and a black line at both ends. 
+			</li>
+		</ul>
+	</li>
+</ul>
+
+@code {
+
+}
